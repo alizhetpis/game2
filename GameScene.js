@@ -22,6 +22,7 @@ class GameScene extends Phaser.Scene {
     // Добавьте жизни, очки и паузу
     this.lives = 3;
     this.score = 0;
+    this.nextEnemySpawn = 0;
     this.isPaused = false;
 
     // Добавьте текстовые элементы для жизней и очков
@@ -51,6 +52,7 @@ class GameScene extends Phaser.Scene {
     this.player = this.physics.add.image(400, 500, 'player');
     this.player.setCollideWorldBounds(true);
 
+    this.input.keyboard.enabled = true;
     this.cursors = this.input.keyboard.createCursorKeys();
     this.fireKey = this.input.keyboard.addKey(
       Phaser.Input.Keyboard.KeyCodes.SPACE
@@ -71,7 +73,8 @@ class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     if (!this.isPaused) {
-      this.handlePlayerInput();
+      this.handleInput();
+      this.enemies.getChildren().forEach((enemy) => enemy.update());
       this.spawnEnemies();
 
       // Проверяем столкновение пуль с врагами
@@ -105,6 +108,7 @@ class GameScene extends Phaser.Scene {
 
   spawnEnemies() {
     if (this.time.now > this.nextEnemySpawn && !this.isPaused) {
+      this.enemySpawnDelay = 1000;
       this.spawnEnemy();
       this.nextEnemySpawn = this.time.now + this.enemySpawnDelay;
     }
@@ -135,6 +139,24 @@ class GameScene extends Phaser.Scene {
 
     if (this.lives <= 0) {
       this.scene.start('GameOver', { score: this.score });
+    }
+  }
+
+  handleInput() {
+    if (this.cursors.left.isDown) {
+      this.player.setVelocityX(-200);
+    } else if (this.cursors.right.isDown) {
+      this.player.setVelocityX(200);
+    } else {
+      this.player.setVelocityX(0);
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.fireKey) && !this.isPaused) {
+      const bullet = this.bullets.get();
+      if (bullet) {
+        bullet.fire(this.player.x, this.player.y - this.player.height / 2);
+        this.shootSound.play();
+      }
     }
   }
 }
@@ -168,5 +190,11 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.scene.add.existing(this);
     this.scene.physics.add.existing(this);
     this.setVelocityY(100);
+  }
+
+  update() {
+    if (this.y > 600) {
+      this.destroy();
+    }
   }
 }
