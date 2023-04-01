@@ -42,6 +42,13 @@ class GameScene extends Phaser.Scene {
       maxSize: 10,
     });
 
+    // Создайте пул пуль врагов
+    this.enemyBullets = this.add.group({
+      classType: EnemyBullet,
+      runChildUpdate: true,
+      maxSize: 10,
+    });
+
     // Добавьте логику паузы
     this.input.keyboard.on('keydown-P', () => {
       this.isPaused = !this.isPaused;
@@ -72,12 +79,14 @@ class GameScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    console.log('update');
     if (!this.isPaused) {
       this.handleInput();
+      this.handlePlayerInput();
+      this.handleEnemySpawn();
       this.enemies.getChildren().forEach((enemy) => enemy.update());
-      this.spawnEnemies();
-
-      // Проверяем столкновение пуль с врагами
+      this.bullets.getChildren().forEach((bullet) => bullet.update());
+      this.enemyBullets.getChildren().forEach((bullet) => bullet.update());
       this.physics.overlap(
         this.bullets,
         this.enemies,
@@ -85,78 +94,67 @@ class GameScene extends Phaser.Scene {
         null,
         this
       );
-    }
-  }
-
-  handlePlayerInput() {
-    if (this.cursors.left.isDown) {
-      this.player.setVelocityX(-200);
-    } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(200);
-    } else {
-      this.player.setVelocityX(0);
-    }
-
-    if (Phaser.Input.Keyboard.JustDown(this.fireKey) && !this.isPaused) {
-      const bullet = this.bullets.get();
-      if (bullet) {
-        bullet.fire(this.player.x, this.player.y - this.player.height / 2);
-        this.shootSound.play();
-      }
-    }
-  }
-
-  spawnEnemies() {
-    if (this.time.now > this.nextEnemySpawn && !this.isPaused) {
-      this.enemySpawnDelay = 1000;
-      this.spawnEnemy();
-      this.nextEnemySpawn = this.time.now + this.enemySpawnDelay;
+      this.physics.overlap(
+        this.player,
+        this.enemyBullets,
+        this.handlePlayerEnemyCollision,
+        null,
+        this
+      );
+      this.physics.overlap(
+        this.player,
+        this.enemies,
+        this.handlePlayerEnemyCollision,
+        null,
+        this
+      );
     }
   }
 
   spawnEnemy() {
     const enemy = new Enemy(this, Phaser.Math.Between(50, 750), 0);
+    enemy.shootDelay = Phaser.Math.Between(2000, 5000);
+    enemy.nextShootTime = 0;
     this.enemies.add(enemy);
+  }
+
+  handleEnemyShoot(enemy) {
+    const enemyBullet = this.enemyBullets.get();
+    if (enemyBullet && enemy.active) {
+      const angle = Phaser.Math.Angle.BetweenPoints(enemy, this.player);
+      enemyBullet.fire(enemy.x, enemy.y, angle);
+    }
+  }
+
+  handleEnemySpawn() {
+    if (this.time.now > this.nextEnemySpawn && !this.isPaused) {
+      this.spawnEnemy();
+      this.nextEnemySpawn = this.time.now + this.enemySpawnDelay;
+    }
+    this.enemies.getChildren().forEach((enemy) => {
+      if (enemy.active && this.time.now > enemy.nextShootTime) {
+        this.handleEnemyShoot(enemy);
+        enemy.nextShootTime = this.time.now + enemy.shootDelay;
+      }
+    });
   }
 
   hitEnemy(bullet, enemy) {
     bullet.setActive(false);
     bullet.setVisible(false);
-
-    // Увеличиваем счет и обновляем текст счета
-    this.score += 10;
-    this.scoreText.setText(`Score: ${this.score}`);
-
-    // Удаляем врага и создаем нового
     enemy.destroy();
     this.spawnEnemy();
+    this.score += 10;
+    this.scoreText.setText(`Score: ${this.score}`);
   }
 
   handlePlayerEnemyCollision(player, enemy) {
-    // Уменьшаем количество жизней и обновляем текст жизней
+    enemy.setActive(false);
+    enemy.setVisible(false);
     this.lives -= 1;
     this.livesText.setText(`Lives: ${this.lives}`);
-
     if (this.lives <= 0) {
       this.scene.start('GameOver', { score: this.score });
-    }
-  }
-
-  handleInput() {
-    if (this.cursors.left.isDown) {
-      this.player.setVelocityX(-200);
-    } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(200);
-    } else {
-      this.player.setVelocityX(0);
-    }
-
-    if (Phaser.Input.Keyboard.JustDown(this.fireKey) && !this.isPaused) {
-      const bullet = this.bullets.get();
-      if (bullet) {
-        bullet.fire(this.player.x, this.player.y - this.player.height / 2);
-        this.shootSound.play();
-      }
     }
   }
 }
@@ -195,6 +193,34 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   update() {
     if (this.y > 600) {
       this.destroy();
+    }
+  }
+}
+
+class EnemyBullet extends Phaser.GameObjects.Image {
+  constructor(scene) {
+    super(scene, 0, 0, 'bullet');
+    this.speed = 400;
+    this.active = false;
+    this.visible = false;
+  }
+
+  fire(x, y, angle) {
+    this.setActive(true);
+    this.setVisible(true);
+    this.setPosition(x, y);
+    this.setRotation(angle);
+    this.scene.physics.velocityFromRotation(
+      angle - Math.PI / 2,
+      this.speed,
+      this.body.velocity
+    );
+  }
+
+  update() {
+    if (this.y > 600 || this.y < 0 || this.x > 800 || this.x < 0) {
+      this.setActive(false);
+      this.setVisible(false);
     }
   }
 }
