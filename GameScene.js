@@ -19,9 +19,7 @@ class GameScene extends Phaser.Scene {
 
     this.input.keyboard.enabled = true;
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.fireKey = this.input.keyboard.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SPACE
-    );
+    this.fireKey = this.input.keyboard.addKey('SPACE');
 
     // Добавьте фоновое изображение
     this.add.image(400, 300, 'background');
@@ -72,9 +70,7 @@ class GameScene extends Phaser.Scene {
 
     this.input.keyboard.enabled = true;
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.fireKey = this.input.keyboard.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SPACE
-    );
+    this.fireKey = this.input.keyboard.addKey('SPACE');
 
     // Создайте группу врагов
     this.enemies = this.physics.add.group();
@@ -182,12 +178,9 @@ class GameScene extends Phaser.Scene {
   }
 
   handlePlayerInput() {
-    console.log(
-      'handlePlayerInput',
-      this.fireKey.isDown,
-      this.spaceKeyReleased,
-      !this.isPaused
-    );
+    console.log('Fire key is down:', this.fireKey.isDown);
+    console.log('Space key is released:', this.spaceKeyReleased);
+    console.log('Game is not paused:', !this.isPaused);
 
     if (
       this.fireKey.isDown &&
