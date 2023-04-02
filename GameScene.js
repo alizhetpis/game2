@@ -13,6 +13,16 @@ class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.input.keyboard.on('keydown-SPACE', (event) => {
+      event.preventDefault();
+    });
+
+    this.input.keyboard.enabled = true;
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.fireKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.SPACE
+    );
+
     // Добавьте фоновое изображение
     this.add.image(400, 300, 'background');
 
@@ -23,6 +33,7 @@ class GameScene extends Phaser.Scene {
     this.lives = 3;
     this.score = 0;
     this.nextEnemySpawn = 0;
+    this.enemySpawnDelay = 2000;
     this.isPaused = false;
 
     // Добавьте текстовые элементы для жизней и очков
@@ -38,8 +49,8 @@ class GameScene extends Phaser.Scene {
     // Создайте пул пуль
     this.bullets = this.add.group({
       classType: Bullet,
-      runChildUpdate: true,
       maxSize: 10,
+      runChildUpdate: true, // Добавьте эту строку, чтобы автоматически вызывать метод update для всех дочерних элементов
     });
 
     // Создайте пул пуль врагов
@@ -76,10 +87,13 @@ class GameScene extends Phaser.Scene {
       null,
       this
     );
+
+    this.fireRate = 200;
+    this.nextFireTime = this.time.now;
+    this.spaceKeyReleased = true;
   }
 
   update(time, delta) {
-    console.log('update');
     if (!this.isPaused) {
       this.handleInput();
       this.handlePlayerInput();
@@ -149,29 +163,69 @@ class GameScene extends Phaser.Scene {
   }
 
   handlePlayerEnemyCollision(player, enemy) {
-    enemy.setActive(false);
-    enemy.setVisible(false);
+    enemy.disableBody(true, true); // Use this line instead
     this.lives -= 1;
     this.livesText.setText(`Lives: ${this.lives}`);
     if (this.lives <= 0) {
       this.scene.start('GameOver', { score: this.score });
     }
   }
+
+  handleInput() {
+    if (this.cursors.left.isDown) {
+      this.player.setVelocityX(-200);
+    } else if (this.cursors.right.isDown) {
+      this.player.setVelocityX(200);
+    } else {
+      this.player.setVelocityX(0);
+    }
+  }
+
+  handlePlayerInput() {
+    console.log(
+      'handlePlayerInput',
+      this.fireKey.isDown,
+      this.spaceKeyReleased,
+      !this.isPaused
+    );
+
+    if (
+      this.fireKey.isDown &&
+      this.spaceKeyReleased &&
+      !this.isPaused &&
+      this.time.now > this.nextFireTime
+    ) {
+      console.log('fire!');
+      this.spaceKeyReleased = false;
+      const bullet = this.bullets.get();
+      if (bullet) {
+        bullet.fire(this.player.x, this.player.y);
+        this.shootSound.play();
+        this.nextFireTime = this.time.now + this.fireRate;
+      }
+    }
+
+    if (this.fireKey.isUp) {
+      this.spaceKeyReleased = true;
+    }
+  }
 }
 
-class Bullet extends Phaser.GameObjects.Image {
+class Bullet extends Phaser.Physics.Arcade.Image {
   constructor(scene) {
     super(scene, 0, 0, 'bullet');
     this.speed = 400;
     this.active = false;
     this.visible = false;
+    this.scene.physics.world.enable(this);
   }
 
   fire(x, y) {
+    console.log('Firing bullet');
     this.setActive(true);
     this.setVisible(true);
-    this.setPosition(x, y);
-    this.setVelocityY(-this.speed);
+    this.setPosition(x, y - 20);
+    this.body.setVelocityY(this.speed * -1);
   }
 
   update() {
@@ -197,12 +251,13 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 }
 
-class EnemyBullet extends Phaser.GameObjects.Image {
+class EnemyBullet extends Phaser.Physics.Arcade.Image {
   constructor(scene) {
     super(scene, 0, 0, 'bullet');
     this.speed = 400;
     this.active = false;
     this.visible = false;
+    this.scene.physics.world.enable(this); // Add this line to enable the physics body for EnemyBullet
   }
 
   fire(x, y, angle) {
@@ -211,7 +266,7 @@ class EnemyBullet extends Phaser.GameObjects.Image {
     this.setPosition(x, y);
     this.setRotation(angle);
     this.scene.physics.velocityFromRotation(
-      angle - Math.PI / 2,
+      angle,
       this.speed,
       this.body.velocity
     );
